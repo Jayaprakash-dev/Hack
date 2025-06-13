@@ -64,11 +64,11 @@ CHIP ALU {
     Not16(in= fOut, out= nOut);
     Mux16(a= fOut, b= nOut, sel= no, out= muxOut);
 
-    Or16Way(in=out2, out=outnonzero);
-    Mux(a=true, b=false, sel=outnonzero, out=zr);   /* if out=0 then zr=1 else zr=0 */
+    Or16Way(in= out2, out= outnonzero);
+    Mux(a= true, b= false, sel= outnonzero, out= zr);   /* if out=0 then zr=1 else zr=0 */
 
-    IsNeg16(in=out2, out=neg);
-    Mux(a=false, b=true, sel=neg, out=ng);          /* if out<0 then ng=1 else ng=0 */
+    IsNeg16(in= out2, out= neg);
+    Mux(a= false, b= true, sel= neg, out= ng);          /* if out<0 then ng=1 else ng=0 */
 
-    Or16(a=out2, b=false, out=out);
+    Or16(a= out2, b= false, out= out);
 }

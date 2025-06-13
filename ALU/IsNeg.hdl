@@ -6,5 +6,5 @@ CHIP IsNeg16 {
     PARTS:
     // we need to look up the MSB of the input,
     // if (MSB == 1) means it's an negative number, else positive num (acc. to 2's complement theorem).
-    And(a=in[15], b=true, out=out);
+    And(a = in[15], b = true, out = out);
 }
