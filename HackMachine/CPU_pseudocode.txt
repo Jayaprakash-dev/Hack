@@ -1,0 +1,26 @@
+opcode => instruction[15]
+
+opcode == 0: A instruction
+opcode == 1: C instruction
+
+A Register
+    if d1 = 1 or opcode == 0
+        then load = 1
+
+PC
+    if reset == 1
+        pc = 0
+    else
+        if j1 or j2 or j3 == 1
+            pc = A register value
+            jump to A
+        else
+            pc++
+
+EntryMUX16
+    if opcode == 1
+        then ALU output
+    else
+        A-Instruction
+    
+
