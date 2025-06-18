@@ -28,121 +28,122 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-        // --- JUMP INSTRUCTION LOGIC (based on bits instruction[2..0]) ---
 
-        // Invert jump bits for decoding
-        Not(in=instruction[2], out=notInstruction2);
-        Not(in=instruction[1], out=notInstruction1);
-        Not(in=instruction[0], out=notInstruction0);
+    // --- INSTRUCTION FETCH ---
 
-        // Invert ALU output flags
-        Not(in=ng, out=notNg);
-        Not(in=zr, out=notZr);
+    // Select between A-instruction (load address) or ALU output
+    // if opcode == 1 then out = ALU output;
+    // else A-instruction
+    Mux16(a=instruction, b=aluOut, sel=instruction[15], out=instructionMux16AluOutM);
 
-        // JGT: if out > 0 → !ng & !zr & 001
-        And(a=notInstruction2, b=notInstruction1, out=notInstruction2And1);
-        And(a=notInstruction2And1, b=instruction[0], out=notInstruction2And1Andinstruction0);
-        And(a=notNg, b=notZr, out=notNgAndnotZr);
-        And(a=notInstruction2And1Andinstruction0, b=notNgAndnotZr, out=jgt);
+    // A REGISTER: updated from instruction or ALU output
+    // if (opcode == 1 and d1 == 1) or opcode == 0 then load = 1
+    // else load = 0
+    Not(in=instruction[15], out=notInstruction15);
+    And(a=instruction[15], b=instruction[5], out=instruction15And5);
+    Or(a=instruction15And5, b=notInstruction15, out=aRegLoad);
 
-        // JEQ: if out == 0 → zr & !ng & 010
-        And(a=notInstruction2, b=notInstruction0, out=notInstruction2And0);
-        And(a=notInstruction2And0, b=instruction[1], out=notInstruction2And0Andinstruction1);
-        And(a=zr, b=notNg, out=zrAndnotNg);
-        And(a=zrAndnotNg, b=notInstruction2And0Andinstruction1, out=jeq);
+    ARegister(in=instructionMux16AluOutM, load=aRegLoad, out=aRegOut);
 
-        // JGE: if out >= 0 → !ng || zr & 011
-        And(a=instruction[1], b=instruction[0], out=instruction1And0);
-        And(a=instruction1And0, b=notInstruction2, out=instruction1And0AndNotInstruction2);
-        And(a=instruction1And0AndNotInstruction2, b=notNg, out=instruction1And0AndNotInstruction2AndnotNg);
-        Or(a=instruction1And0AndNotInstruction2AndnotNg, b=zr, out=jge);
+    // Address for RAM (addressM = A)
+    Or16(a=aRegOut, b=false, out[0..14]=addressM);
 
-        // JLT: if out < 0 → ng & 100
-        And(a=notInstruction1, b=notInstruction0, out=notInstruction1And0);
-        And(a=notInstruction1And0, b=instruction[2], out=notInstruction1And0Andinstruction2);
-        And(a=notInstruction1And0Andinstruction2, b=ng, out=jlt);
+    // --- JUMP INSTRUCTION LOGIC (based on bits instruction[2..0]) ---
 
-        // JNE: if out != 0 → !zr & 101
-        And(a=instruction[2], b=instruction[0], out=instruction2And0);
-        And(a=instruction2And0, b=notInstruction1, out=instruction2And0AndNotInstruction1);
-        And(a=notZr, b=instruction2And0AndNotInstruction1, out=jne);
+    // Invert jump bits for decoding
+    Not(in=instruction[2], out=notInstruction2);
+    Not(in=instruction[1], out=notInstruction1);
+    Not(in=instruction[0], out=notInstruction0);
 
-        // JLE: if out <= 0 → ng || zr & 110
-        And(a=instruction[2], b=instruction[1], out=instruction2And1);
-        And(a=instruction2And1, b=notInstruction0, out=instruction2And1AndNotInstruction0);
-        And(a=instruction2And1AndNotInstruction0, b=ng, out=instruction2And1AndNotInstruction0Andng);
-        Or(a=instruction2And1AndNotInstruction0Andng, b=zr, out=jle);
+    // Invert ALU output flags
+    Not(in=ng, out=notNg);
+    Not(in=zr, out=notZr);
 
-        // JMP: unconditional jump (111)
-        And(a=instruction2And1, b=instruction[0], out=jmp);
+    // JGT: if out > 0 → !ng & !zr & 001
+    And(a=notInstruction2, b=notInstruction1, out=notInstruction2And1);
+    And(a=notInstruction2And1, b=instruction[0], out=notInstruction2And1Andinstruction0);
+    And(a=notNg, b=notZr, out=notNgAndnotZr);
+    And(a=notInstruction2And1Andinstruction0, b=notNgAndnotZr, out=jgt);
 
-        // Select jump output based on instruction[2..0]
-        Mux8Way(
-            a=false, b=jgt, c=jeq, d=jge, e=jlt, 
-            f=jne, g=jle, h=jmp, sel=instruction[0..2], 
-            out=jmpOut
-        );
+    // JEQ: if out == 0 → zr & !ng & 010
+    And(a=notInstruction2, b=notInstruction0, out=notInstruction2And0);
+    And(a=notInstruction2And0, b=instruction[1], out=notInstruction2And0Andinstruction1);
+    And(a=zr, b=notNg, out=zrAndnotNg);
+    And(a=zrAndnotNg, b=notInstruction2And0Andinstruction1, out=jeq);
 
-        // --- PROGRAM COUNTER (PC) LOGIC ---
+    // JGE: if out >= 0 → !ng || zr & 011
+    And(a=instruction[1], b=instruction[0], out=instruction1And0);
+    And(a=instruction1And0, b=notInstruction2, out=instruction1And0AndNotInstruction2);
+    And(a=instruction1And0AndNotInstruction2, b=notNg, out=instruction1And0AndNotInstruction2AndnotNg);
+    Or(a=instruction1And0AndNotInstruction2AndnotNg, b=zr, out=jge);
 
-        // Load PC on jump (only for C-instructions)
-        // if jmpout == 1 and opcode == 1 then execute jmp
-        // else pc++
-        And(a=jmpOut, b=instruction[15], out=pcLoad);
-        Not(in=pcLoad, out=notPcLoad);
+    // JLT: if out < 0 → ng & 100
+    And(a=notInstruction1, b=notInstruction0, out=notInstruction1And0);
+    And(a=notInstruction1And0, b=instruction[2], out=notInstruction1And0Andinstruction2);
+    And(a=notInstruction1And0Andinstruction2, b=ng, out=jlt);
 
-        // PC updates on jump (load), otherwise increments (pc++)
-        PC(in=aRegOut, load=pcLoad, inc=notPcLoad, reset=reset, out[0..14]=pc);
+    // JNE: if out != 0 → !zr & 101
+    And(a=instruction[2], b=instruction[0], out=instruction2And0);
+    And(a=instruction2And0, b=notInstruction1, out=instruction2And0AndNotInstruction1);
+    And(a=notZr, b=instruction2And0AndNotInstruction1, out=jne);
 
-        // --- INSTRUCTION DECODE AND EXECUTION ---
+    // JLE: if out <= 0 → ng || zr & 110
+    And(a=instruction[2], b=instruction[1], out=instruction2And1);
+    And(a=instruction2And1, b=notInstruction0, out=instruction2And1AndNotInstruction0);
+    And(a=instruction2And1AndNotInstruction0, b=ng, out=instruction2And1AndNotInstruction0Andng);
+    Or(a=instruction2And1AndNotInstruction0Andng, b=zr, out=jle);
 
-        // Select between A-instruction (load address) or ALU output
-        // if opcode == 1 then out = ALU output;
-        // else A-instruction
-        Mux16(a=instruction, b=aluOut, sel=instruction[15], out=instructionMux16AluOutM);
+    // JMP: unconditional jump (111)
+    And(a=instruction2And1, b=instruction[0], out=jmp);
 
-        // A REGISTER: updated from instruction or ALU output
-        // if (opcode == 1 and d1 == 1) or opcode == 0 then load = 1
-        // else load = 0
-        Not(in=instruction[15], out=notInstruction15);
-        And(a=instruction[15], b=instruction[5], out=instruction15And5);
-        Or(a=instruction15And5, b=notInstruction15, out=aRegLoad);
+    // Select jump output based on instruction[2..0]
+    Mux8Way(
+        a=false, b=jgt, c=jeq, d=jge, e=jlt, 
+        f=jne, g=jle, h=jmp, sel=instruction[0..2], 
+        out=isJmpChecked
+    );
 
-        ARegister(in=instructionMux16AluOutM, load=aRegLoad, out=aRegOut);
+    // --- PROGRAM COUNTER (PC) LOGIC ---
 
-        // Address for RAM (addressM = A)
-        Or16(a=aRegOut, b=false, out[0..14]=addressM);
+    // Load PC on jump (only for C-instructions)
+    // if jmpout == 1 and opcode == 1 then execute jmp
+    // else pc++
+    And(a=isJmpChecked, b=instruction[15], out=doJmp);
+    Not(in=doJmp, out=doInc);
 
-        // D REGISTER: load from ALU output on C-instruction
-        // if opcode == 1 and d2 == 1 then load = 1
-        // else load = 0
-        And(a=instruction[15], b=instruction[4], out=dRegLoad);
-        DRegister(in=aluOut, load=dRegLoad, out=dRegOut);
+    // PC updates on jump (load), otherwise increments (pc++)
+    PC(in=aRegOut, load=doJmp, inc=doInc, reset=reset, out[0..14]=pc);
 
-        // --- ALU EXECUTION ---
+    // D REGISTER: load from ALU output on C-instruction
+    // if opcode == 1 and d2 == 1 then load = 1
+    // else load = 0
+    And(a=instruction[15], b=instruction[4], out=dRegLoad);
+    DRegister(in=aluOut, load=dRegLoad, out=dRegOut);
 
-        // Choose ALU input: A (default) or M (RAM[A])
-        // if opcode == 1 and a == 1 then accept `inM` (means, RHS of C-instruction contains `M`)
-        // eg. M = M + 1
-        // else A-Register output
-        And(a=instruction[15], b=instruction[12], out=aluSel);
-        Mux16(a=aRegOut, b=inM, sel=aluSel, out=aRegMux16InM);
+    // --- ALU EXECUTION (INSTRUCTION DECODE AND EXECUTE) ---
 
-        // ALU operation (zx, nx, zy, ny, f, no control bits from instruction)
-        ALU(
-            x=dRegOut, y=aRegMux16InM,
-            zx=instruction[11], nx=instruction[10], zy=instruction[9],
-            ny=instruction[8], f=instruction[7], no=instruction[6],
-            out=aluOut, zr=zr, ng=ng
-        );
+    // Choose ALU input: A (default) or M (RAM[A])
+    // if opcode == 1 and a == 1 then accept `inM` (means, RHS of C-instruction contains `M`)
+    // eg. M = M + 1
+    // else A-Register output
+    And(a=instruction[15], b=instruction[12], out=aluSel);
+    Mux16(a=aRegOut, b=inM, sel=aluSel, out=aRegMux16InM);
 
-        // --- MEMORY INTERFACE ---
+    // ALU operation (zx, nx, zy, ny, f, no control bits from instruction)
+    ALU(
+        x=dRegOut, y=aRegMux16InM,
+        zx=instruction[11], nx=instruction[10], zy=instruction[9],
+        ny=instruction[8], f=instruction[7], no=instruction[6],
+        out=aluOut, zr=zr, ng=ng
+    );
 
-        // outM = ALU output
-        Or16(a=aluOut, b=false, out=outM);
+    // --- MEMORY INTERFACE ---
 
-        // writeM = 1 if C-instruction and dest includes M
-        // if opcode == 1 and d3 == 1 then writeM = 1
-        // else writeM = 0
-        And(a=instruction[15], b=instruction[3], out=writeM);
+    // outM = ALU output
+    Or16(a=aluOut, b=false, out=outM);
+
+    // writeM = 1 if C-instruction and dest includes M
+    // if opcode == 1 and d3 == 1 then writeM = 1
+    // else writeM = 0
+    And(a=instruction[15], b=instruction[3], out=writeM);
 }
