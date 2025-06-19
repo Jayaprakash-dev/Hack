@@ -24,7 +24,5 @@ CHIP PC {
     Mux16(a= afterJumpOrIncPC, b= false, sel= reset, out= nextPC);
 
     //  PC register
-    Register(in= nextPC, load= true, out= regOut);
-
-    Or16(a=regOut, b=false, out=out);
+    Register(in= nextPC, load= true, out= regOut, out = out);
 }
