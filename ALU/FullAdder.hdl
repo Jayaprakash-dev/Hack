@@ -8,10 +8,11 @@ CHIP FullAdder {
 
     PARTS:
     HalfAdder(
-    a= a, b= b, sum= halfAdderSum1, carry= halfAdderCarry1);
+        a= a, b= b, sum= halfAdderSum1, carry= halfAdderCarry1
+    );
     HalfAdder(
-    a= halfAdderSum1, b= c, sum= sum, carry= halfAdderCarry2);
+        a= halfAdderSum1, b= c, sum= sum, carry= halfAdderCarry2
+    );
 
-    Or(
-    a= halfAdderCarry1, b= halfAdderCarry2, out= carry);
+    Or(a= halfAdderCarry1, b= halfAdderCarry2, out= carry);
 }
